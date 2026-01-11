@@ -2,112 +2,237 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Motor Shop POS</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MotoShop Pro POS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
-        body { padding: 20px; background-color: #f8f9fa; }
-        #reader { width: 100%; max-width: 500px; margin: 0 auto; display: none; }
-        .card { max-width: 500px; margin: 0 auto; }
+        body { background-color: #f0f2f5; padding-bottom: 80px; } /* เว้นที่ให้ปุ่มด้านล่าง */
+        .scan-area { background: #333; color: white; padding: 10px; border-radius: 10px; text-align: center; margin-bottom: 10px;}
+        #reader { width: 100%; border-radius: 8px; overflow: hidden; display: none; }
+        .cart-item { background: white; border-bottom: 1px solid #eee; padding: 10px; }
+        .cart-total { position: fixed; bottom: 0; left: 0; width: 100%; background: white; padding: 15px; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); z-index: 1000; }
+        .btn-float { position: fixed; bottom: 90px; right: 20px; border-radius: 50%; width: 60px; height: 60px; font-size: 24px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); z-index: 999; }
     </style>
 </head>
 <body>
 
-<div class="card shadow">
-    <div class="card-header bg-primary text-white text-center">
-        <h4>ระบบขายหน้าร้าน (Hard Mode)</h4>
+<nav class="navbar navbar-dark bg-primary shadow-sm mb-3">
+    <div class="container-fluid">
+        <span class="navbar-brand mb-0 h1"><i class="bi bi-wrench-adjustable-circle"></i> ระบบร้านซ่อม</span>
+        <button class="btn btn-sm btn-light text-primary" onclick="syncData()">🔄 อัปเดตสินค้า</button>
     </div>
-    <div class="card-body">
-        
+</nav>
+
+<div class="container">
+    
+    <div class="scan-area" onclick="startScan()">
+        <i class="bi bi-upc-scan" style="font-size: 2rem;"></i><br>
+        กดเพื่อสแกนสินค้า
         <div id="reader"></div>
-        <button class="btn btn-warning w-100 mb-3" onclick="startScan()">📷 เปิดกล้องสแกน</button>
-        
-        <div class="mb-3">
-            <label>บาร์โค้ด:</label>
-            <input type="text" id="barcodeInput" class="form-control" placeholder="ยิงบาร์โค้ด หรือ พิมพ์...">
-        </div>
-        
-        <div class="d-grid gap-2 mb-3">
-            <button class="btn btn-success" onclick="searchProduct()">🔍 ค้นหาสินค้า</button>
-        </div>
-
-        <hr>
-
-        <div id="productArea" style="display:none;">
-            <h5 id="pName" class="text-primary"></h5>
-            <p>ราคา: <span id="pPrice" class="fw-bold"></span> บาท | สต็อก: <span id="pStock"></span></p>
-            
-            <div class="row g-2 align-items-center mb-3">
-                <div class="col-auto"><label>จำนวน:</label></div>
-                <div class="col"><input type="number" id="qty" class="form-control" value="1"></div>
-            </div>
-
-            <button class="btn btn-primary w-100" onclick="saveOrder()">💰 บันทึกการขาย</button>
-        </div>
-
     </div>
+
+    <h6 class="text-muted ms-2 mt-3">ตะกร้าสินค้า (<span id="cartCount">0</span>)</h6>
+    <div id="cartList" class="mb-5">
+        <div class="text-center text-muted mt-5 p-5">ยังไม่มีรายการ</div>
+    </div>
+
+</div>
+
+<button class="btn btn-warning btn-float shadow" onclick="openManualAdd()">
+    <i class="bi bi-plus-lg"></i>
+</button>
+
+<div class="cart-total d-flex justify-content-between align-items-center">
+    <div>
+        <small class="text-muted">ยอดรวมสุทธิ</small>
+        <h3 class="m-0 text-primary">฿<span id="grandTotal">0</span></h3>
+    </div>
+    <button class="btn btn-success btn-lg px-4" onclick="checkout()">
+        <i class="bi bi-cash-coin"></i> รับเงิน
+    </button>
+</div>
+
+<div class="modal fade" id="manualModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">เพิ่มรายการระบุเอง / ค่าแรง</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+            <label>ชื่อรายการ (เช่น ค่าแรง, น็อต)</label>
+            <input type="text" id="mName" class="form-control" placeholder="ระบุชื่อ...">
+        </div>
+        <div class="row g-2">
+            <div class="col">
+                <label>ราคา</label>
+                <input type="number" id="mPrice" class="form-control" placeholder="0">
+            </div>
+            <div class="col">
+                <label>จำนวน</label>
+                <input type="number" id="mQty" class="form-control" value="1">
+            </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary w-100" onclick="addManualItem()">เพิ่มลงบิล</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
     // ----------------------------------------------------
-    // ⚠️ ใส่ URL ของคุณตรงนี้ (ที่ได้จาก Apps Script)
+    // ⚠️ อย่าลืมแก้บรรทัดนี้ ให้เป็นลิงก์ของคุณเองนะครับ!
     const APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxHHKOvaJAWxSAo-pQnvmnP7lLZn2G5_oeiFBK7aVdHY0RIGcsykLR9rWKvbfk98OE0iA/exec"; 
     // ----------------------------------------------------
 
+    let allProducts = []; // เก็บสินค้าทั้งหมดไว้ในเครื่อง
+    let cart = []; // ตะกร้าสินค้า
+    let html5QrCode;
+
+    // โหลดหน้าเว็บแล้วดึงข้อมูลสินค้าทันที
+    window.onload = function() {
+        syncData();
+    }
+
+    function syncData() {
+        fetch(APP_SCRIPT_URL + "?action=getAllProducts")
+        .then(res => res.json())
+        .then(json => {
+            if(json.status == "success") {
+                allProducts = json.data;
+                console.log("Products Loaded:", allProducts.length);
+                alert("✅ อัปเดตข้อมูลสินค้าเสร็จสิ้น (" + allProducts.length + " รายการ)");
+            }
+        }).catch(err => alert("เชื่อมต่อล้มเหลว"));
+    }
+
     function startScan() {
         document.getElementById('reader').style.display = 'block';
-        const html5QrCode = new Html5Qrcode("reader");
+        html5QrCode = new Html5Qrcode("reader");
         html5QrCode.start(
             { facingMode: "environment" }, 
             { fps: 10, qrbox: { width: 250, height: 250 } },
-            (decodedText, decodedResult) => {
-                // เมื่อสแกนเจอ
-                document.getElementById('barcodeInput').value = decodedText;
+            (decodedText) => {
                 html5QrCode.stop();
                 document.getElementById('reader').style.display = 'none';
-                searchProduct(); // ค้นหาทันที
+                findAndAdd(decodedText); // เจอแล้วส่งไปค้นหา
             },
             (errorMessage) => { }
         ).catch(err => { console.log(err); });
     }
 
-    function searchProduct() {
-        let barcode = document.getElementById('barcodeInput').value;
-        if(!barcode) return alert("กรอกบาร์โค้ดก่อนครับ");
-
-        // เรียก API ไปที่ Google Sheet
-        fetch(APP_SCRIPT_URL + "?action=getProduct&barcode=" + barcode)
-        .then(res => res.json())
-        .then(data => {
-            if(data.status == "success") {
-                document.getElementById('productArea').style.display = 'block';
-                document.getElementById('pName').innerText = data.name;
-                document.getElementById('pPrice').innerText = data.price;
-                document.getElementById('pStock').innerText = data.stock;
-            } else {
-                alert("ไม่พบสินค้า!");
-                document.getElementById('productArea').style.display = 'none';
+    function findAndAdd(barcode) {
+        // ค้นหาจากข้อมูลในเครื่อง (เร็วมาก)
+        let product = allProducts.find(p => p.barcode == barcode);
+        
+        if (product) {
+            addToCart(product.name, product.price, 1, product.barcode, product.isService);
+        } else {
+            // ถ้าไม่เจอ ให้เด้งไปหน้ากรอกเอง แต่ใส่บาร์โค้ดรอไว้
+            if(confirm("ไม่พบสินค้านี้ ต้องการเพิ่มเป็นรายการใหม่ไหม?")) {
+                openManualAdd(barcode);
             }
-        });
+        }
     }
 
-    function saveOrder() {
-        let barcode = document.getElementById('barcodeInput').value;
-        let name = document.getElementById('pName').innerText;
-        let price = parseFloat(document.getElementById('pPrice').innerText);
-        let qty = parseInt(document.getElementById('qty').value);
-        let total = price * qty;
+    function openManualAdd(barcodeObj = "") {
+        const modal = new bootstrap.Modal(document.getElementById('manualModal'));
+        document.getElementById('mName').value = barcodeObj ? "สินค้าใหม่ (" + barcodeObj + ")" : "";
+        document.getElementById('mPrice').value = "";
+        document.getElementById('mQty').value = "1";
+        modal.show();
+    }
+
+    function addManualItem() {
+        let name = document.getElementById('mName').value;
+        let price = parseFloat(document.getElementById('mPrice').value);
+        let qty = parseInt(document.getElementById('mQty').value);
+
+        if(!name || !price) return alert("กรุณากรอกข้อมูลให้ครบ");
+
+        addToCart(name, price, qty, "MANUAL", true); // Manual ถือว่าเป็น Service ไม่ตัดสต็อก
+        
+        // ปิด Modal
+        const modalEl = document.getElementById('manualModal');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        modal.hide();
+    }
+
+    function addToCart(name, price, qty, barcode, isService) {
+        // เช็คว่ามีของเดิมไหม ถ้ามีให้บวกจำนวนเพิ่ม
+        let existing = cart.find(item => item.barcode == barcode && item.barcode != "MANUAL");
+        if (existing) {
+            existing.qty += qty;
+            existing.total = existing.qty * existing.price;
+        } else {
+            cart.push({
+                barcode: barcode,
+                name: name,
+                price: price,
+                qty: qty,
+                total: price * qty,
+                isService: isService
+            });
+        }
+        renderCart();
+    }
+
+    function renderCart() {
+        let list = document.getElementById('cartList');
+        let total = 0;
+        let count = 0;
+        
+        list.innerHTML = ""; // เคลียร์ของเก่า
+
+        cart.forEach((item, index) => {
+            total += item.total;
+            count += item.qty;
+
+            let row = `
+            <div class="cart-item d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="fw-bold">${item.name}</div>
+                    <small class="text-muted">${item.price} x ${item.qty} ${item.isService ? '(บริการ)' : ''}</small>
+                </div>
+                <div class="text-end">
+                    <div class="fw-bold text-primary">฿${item.total}</div>
+                    <button class="btn btn-sm btn-outline-danger mt-1" onclick="removeFromCart(${index})"><i class="bi bi-trash"></i></button>
+                </div>
+            </div>`;
+            list.innerHTML += row;
+        });
+
+        document.getElementById('grandTotal').innerText = total.toLocaleString();
+        document.getElementById('cartCount').innerText = count;
+        
+        if(cart.length === 0) list.innerHTML = '<div class="text-center text-muted mt-5 p-5">ยังไม่มีรายการ</div>';
+    }
+
+    function removeFromCart(index) {
+        cart.splice(index, 1);
+        renderCart();
+    }
+
+    function checkout() {
+        if(cart.length == 0) return alert("ไม่มีสินค้าในตะกร้า");
+        if(!confirm("ยืนยันรับเงินยอด " + document.getElementById('grandTotal').innerText + " บาท?")) return;
 
         let payload = {
-            action: "saveOrder",
-            barcode: barcode,
-            name: name,
-            qty: qty,
-            total: total
+            action: "checkout",
+            cart: cart
         };
 
-        // ส่งข้อมูลกลับไปบันทึก (POST)
+        // แสดง Loading
+        let payBtn = document.querySelector('.btn-success');
+        let oldText = payBtn.innerHTML;
+        payBtn.innerHTML = "⏳ กำลังบันทึก...";
+        payBtn.disabled = true;
+
         fetch(APP_SCRIPT_URL, {
             method: "POST",
             body: JSON.stringify(payload)
@@ -115,12 +240,23 @@
         .then(res => res.json())
         .then(data => {
             if(data.status == "saved") {
-                alert("✅ บันทึกยอดขายและตัดสต็อกแล้ว!");
-                location.reload(); // รีเฟรชพร้อมขายต่อ
+                alert("✅ บันทึกเรียบร้อย! เลขบิล: " + data.orderId);
+                cart = []; // ล้างตะกร้า
+                renderCart();
+            } else {
+                alert("❌ เกิดข้อผิดพลาด");
             }
+            payBtn.innerHTML = oldText;
+            payBtn.disabled = false;
+        })
+        .catch(err => {
+            alert("เชื่อมต่อไม่ได้");
+            payBtn.innerHTML = oldText;
+            payBtn.disabled = false;
         });
     }
 </script>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
